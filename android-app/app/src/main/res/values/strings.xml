@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Evakuatsiya yordamchisi</string>
+    <!-- Google Cloud Console'dan olingan keyni build vaqtida shu qiymatga qo‘yish mumkin. -->
+    <string name="google_maps_key"></string>
+</resources>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1f2e" />
+    <meta name="description" content="Evakuatsiya xaritasi va sirena yordamchisi" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css?v=18" />
+    <title>Evakuatsiya</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand"><div class="brand-mark">↗</div><div><p class="eyebrow">Favqulodda yordamchi</p><h1>Evakuatsiya</h1></div></div>
+        <div class="header-status" id="headerStatus"><i></i> Sozlanmagan</div>
+      </header>
+
+      <main>
+        <section class="screen active" id="setupScreen">
+          <div class="intro"><p class="eyebrow">Boshlash</p><h2>Bino xaritasini kiriting</h2><p>Faqat xarita va sirena ovozi kerak. Keyin chiqish joyini rasm ustida aniq belgilaysiz.</p></div>
+          <div class="upload-grid">
+            <label class="upload-card" id="mapUploadCard" for="mapInput"><span class="upload-icon">▧</span><strong>Evakuatsiya xaritasi</strong><small>PNG, JPG yoki SVG</small><b id="mapUploadState">Yuklash</b><input type="file" id="mapInput" accept="image/png,image/jpeg,image/svg+xml" /></label>
+            <label class="upload-card" id="audioUploadCard" for="audioInput"><span class="upload-icon">♫</span><strong>Sirena ovozi</strong><small>MP3, WAV yoki M4A</small><b id="audioUploadState">Yuklash</b><input type="file" id="audioInput" accept="audio/*" /></label>
+          </div>
+          <p class="upload-count" id="uploadCount">0 / 2 tayyor</p>
+        </section>
+
+        <section class="screen" id="calibrationScreen">
+          <div class="screen-heading"><div><p class="eyebrow">1-qadam</p><h2>Xaritani moslash</h2><p>Rasmda nuqtalarni belgilang. Shunda chiqish joyi tasodifiy emas, aynan siz ko‘rsatgan joyda chiqadi.</p></div><button class="ghost-button" id="backToSetup">O‘zgartirish</button></div>
+          <div class="mode-tabs"><button class="mode-tab active" data-mode="start"><i class="blue-dot"></i> Siz turgan joy</button><button class="mode-tab" data-mode="exit"><i class="green-dot"></i> Chiqish</button><button class="mode-tab" data-mode="path"><i class="line-dot"></i> Yo‘l nuqtasi</button></div>
+          <div class="floor-editor" id="floorEditor"><img id="floorPlan" src="" alt="Yuklangan evakuatsiya xaritasi" /><svg id="routeSvg" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline id="routePolyline" points="" /><circle id="startMarker" cx="0" cy="0" r="2.2" /><circle id="exitMarker" cx="0" cy="0" r="2.2" /></svg><span class="editor-label start-label hidden" id="startLabel">Siz</span><span class="editor-label exit-label hidden" id="exitLabel">Chiqish</span><div class="editor-empty" id="editorEmpty">Xarita yuklanmoqda...</div></div>
+          <div class="point-status"><div><i class="blue-dot"></i><span id="startStatus">Siz turgan joy belgilanmagan</span></div><div><i class="green-dot"></i><span id="exitStatus">Chiqish belgilanmagan</span></div></div>
+          <div class="location-card"><div class="location-icon">⌖</div><div class="location-copy"><strong>GPS kalibrlash</strong><small id="locationStatus">"Siz turgan joy" ni belgilang, GPS avtomatik olinadi</small></div></div>
+          <div style="margin-top:10px; font-size:12px; color:var(--muted);" id="anchorStatus">GPS: Kalibrlash kutilmoqda...</div>
+          <div class="google-preview hidden" id="googlePreview"><iframe id="googleFrame" title="Google Maps bino lokatsiyasi" loading="lazy"></iframe><a id="googleLink" target="_blank" rel="noopener">Google Maps’da ochish ↗</a></div>
+        </section>
+
+        <section class="screen" id="liveScreen">
+          <div class="live-head"><div><p class="eyebrow">Faol kuzatuv</p><h2 id="liveTitle">Evakuatsiya xaritasi</h2><small id="liveStatus">Sirena kutilmoqda</small></div><button class="small-button danger-outline" id="testAlarmButton">Test</button></div>
+          <div class="alert-banner hidden" id="alertBanner"><span>!</span><div><strong>Sirena aniqlandi</strong><small>Yashil chiziq bo‘yicha chiqishga boring</small></div></div>
+          <div class="live-map" id="liveMap"><img id="livePlan" src="" alt="Faol evakuatsiya xaritasi" /><svg id="liveSvg" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline id="livePolyline" points="" /><circle id="liveStartMarker" cx="0" cy="0" r="2.2" /><circle id="liveExitMarker" cx="0" cy="0" r="2.2" /></svg><span class="live-label live-start-label hidden" id="liveStartLabel">Siz</span><span class="live-label live-exit-label hidden" id="liveExitLabel">Chiqish</span><button class="map-location-button" id="findMeButton" type="button">◎ Men qayerdaman?</button></div>
+          <div class="waiting-card" id="waitingCard"><span>◌</span><div><strong>Signal kutilmoqda</strong><small>Sirena aniqlanganda joylashuv va chiqish yo‘li ko‘rsatiladi.</small></div></div>
+          <div class="live-stats"><div><strong id="distanceValue">—</strong><small>Chiqishgacha</small></div><div><strong id="timeValue">—</strong><small>Taxminiy vaqt</small></div><div><strong id="locationValue">GPS</strong><small>Lokatsiya</small></div></div>
+          <div class="google-live-card"><div><span class="google-pin">⌖</span><div><strong>Bino lokatsiyasi</strong><small id="liveLocationStatus">Google Maps bilan birga ishlaydi</small></div></div><a id="liveGoogleLink" target="_blank" rel="noopener">Ochish ↗</a></div>
+          <div class="live-actions"><button class="ghost-button" id="editRouteButton">Xaritani qayta moslash</button></div>
+        </section>
+      </main>
+
+      <div class="alarm-modal-backdrop hidden" id="alarmModal"><div class="alarm-modal"><div class="alarm-symbol">!</div><p class="eyebrow">Favqulodda signal</p><h2>Darhol chiqish yo‘liga boring</h2><p>Sirena aniqlandi. Telefoningizdagi yashil chiziq bo‘yicha chiqish joyiga boring.</p><button class="primary-button" id="showRouteButton">Yo‘lni ko‘rsatish</button></div></div>
+      <div class="toast" id="toast"></div>
+    </div>
+    <script src="client.js?v=18"></script>
+  </body>
+</html>
