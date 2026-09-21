@@ -20,7 +20,9 @@ const state = {
   noiseFloor: 0,
   demoMode: false,
   gpsAnchor: null,
-  lastStableGps: null
+  lastStableGps: null,
+  smoothedPosition: null, // For GPS smoothing
+  lastGpsUpdate: 0
 };
 
 let recorder;
@@ -292,9 +294,9 @@ function computeTransformFromAnchors() {
     anchorLat: anchor.lat, 
     anchorLon: anchor.lon,
     refLat: anchor.lat,
-    // Increased scale for better indoor movement detection (100m width, 70m height)
-    scaleX: 100, 
-    scaleY: 70 
+    // Large scale for significant movement detection (200m width, 150m height)
+    scaleX: 200, 
+    scaleY: 150 
   };
   showToast('Kalibrlash yaratildi. Endi harakat qiling.');
 }
@@ -352,11 +354,27 @@ function stopLocationWatch() {
 }
 
 function updatePlanPositionFromGps(coords) {
-  // Remove accuracy check - indoor GPS is always inaccurate
+  // Time-based filtering: only update every 2 seconds minimum
+  const now = Date.now();
+  if (now - state.lastGpsUpdate < 2000 && state.smoothedPosition) return;
+  state.lastGpsUpdate = now;
+
   // If we have a computed transform, use it for accurate projection
   const projected = state.transform ? applyTransformToLatLon(coords.latitude, coords.longitude) : null;
   if (projected) {
-    const current = projected;
+    // Apply smoothing (exponential moving average)
+    if (!state.smoothedPosition) {
+      state.smoothedPosition = { x: projected.x, y: projected.y };
+    } else {
+      // Only update if movement is significant (> 2% on map)
+      const dx = Math.abs(projected.x - state.smoothedPosition.x);
+      const dy = Math.abs(projected.y - state.smoothedPosition.y);
+      if (dx < 2 && dy < 2) return; // Ignore small jitter
+      // Smooth with 0.3 factor (30% new, 70% old)
+      state.smoothedPosition.x = state.smoothedPosition.x * 0.7 + projected.x * 0.3;
+      state.smoothedPosition.y = state.smoothedPosition.y * 0.7 + projected.y * 0.3;
+    }
+    const current = state.smoothedPosition;
     $('#liveStartMarker').setAttribute('cx', current.x);
     $('#liveStartMarker').setAttribute('cy', current.y);
     $('#liveStartLabel').style.left = `${current.x}%`;
