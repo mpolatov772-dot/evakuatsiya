@@ -545,14 +545,11 @@ async function saveRoute() {
   state.gpsAnchor = null;
   state.lastStableGps = null;
 
-  // Try sensor tracking first (indoor), fallback to GPS
-  const sensorStarted = await startSensorTracking();
-  if (!sensorStarted) {
-    startLocationWatch();
-  }
+  // Use GPS tracking only (more reliable)
+  startLocationWatch();
 
   switchScreen('live');
-  showToast('Xarita moslandi. Sirena kuzatuvi tayyor.');
+  showToast('Xarita moslandi. GPS bilan kuzatuv tayyor.');
   startMonitoring();
 }
 
