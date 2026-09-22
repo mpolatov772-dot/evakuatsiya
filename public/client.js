@@ -22,7 +22,12 @@ const state = {
   gpsAnchor: null,
   lastStableGps: null,
   smoothedPosition: null, // For GPS smoothing
-  lastGpsUpdate: 0
+  lastGpsUpdate: 0,
+  // Sensor-based indoor tracking
+  sensorPosition: null,
+  lastAcceleration: null,
+  lastHeading: null,
+  sensorEnabled: false
 };
 
 let recorder;
@@ -35,6 +40,9 @@ let alarmAudio;
 let toastTimer;
 let locationWatch;
 let frequencyData;
+let sensorWatch;
+let accelerationWatch;
+let orientationWatch;
 let referenceProfile;
 let referenceSequence = [];
 let liveSequence = [];
@@ -353,6 +361,111 @@ function stopLocationWatch() {
   locationWatch = undefined;
 }
 
+// --- Sensor-based indoor tracking ---
+async function startSensorTracking() {
+  if (!window.DeviceOrientationEvent || !window.DeviceMotionEvent) {
+    showToast('Bu qurilmada sensorlar mavjud emas. GPS ishlatiladi.');
+    return false;
+  }
+
+  // iOS 13+ requires permission request
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try {
+      const permission = await DeviceOrientationEvent.requestPermission();
+      if (permission !== 'granted') {
+        showToast('Sensor ruxsati berilmadi. GPS ishlatiladi.');
+        return false;
+      }
+    } catch (error) {
+      showToast('Sensor ruxsati olishda xatolik. GPS ishlatiladi.');
+      return false;
+    }
+  }
+
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    try {
+      const permission = await DeviceMotionEvent.requestPermission();
+      if (permission !== 'granted') {
+        showToast('Sensor ruxsati berilmadi. GPS ishlatiladi.');
+        return false;
+      }
+    } catch (error) {
+      showToast('Sensor ruxsati olishda xatolik. GPS ishlatiladi.');
+      return false;
+    }
+  }
+
+  state.sensorEnabled = true;
+  state.sensorPosition = { x: state.start.x, y: state.start.y };
+
+  // Device orientation (compass) for heading
+  if (orientationWatch !== undefined) window.removeEventListener('deviceorientation', handleOrientation);
+  window.addEventListener('deviceorientation', handleOrientation);
+
+  // Device motion (accelerometer) for movement detection
+  if (accelerationWatch !== undefined) window.removeEventListener('devicemotion', handleMotion);
+  window.addEventListener('devicemotion', handleMotion);
+
+  showToast('Sensor tracking yoqildi. Harakat qiling.');
+  return true;
+}
+
+function handleOrientation(event) {
+  if (event.alpha === null) return;
+  state.lastHeading = event.alpha; // 0-360 degrees
+}
+
+function handleMotion(event) {
+  if (!state.sensorEnabled || !state.sensorPosition) return;
+
+  const acc = event.accelerationIncludingGravity;
+  if (!acc) return;
+
+  // Calculate movement from acceleration
+  const ax = acc.x || 0;
+  const ay = acc.y || 0;
+  const az = acc.z || 0;
+
+  // Simple step detection: significant acceleration change
+  if (state.lastAcceleration) {
+    const dx = ax - state.lastAcceleration.x;
+    const dy = ay - state.lastAcceleration.y;
+    const dz = az - state.lastAcceleration.z;
+    const magnitude = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+    // If significant movement detected (> 2 m/s²)
+    if (magnitude > 2) {
+      // Move in direction of heading
+      const heading = state.lastHeading || 0;
+      const radians = (heading * Math.PI) / 180;
+      const stepSize = 1.5; // 1.5% per step on map
+
+      // Convert heading to map coordinates
+      const moveX = Math.sin(radians) * stepSize;
+      const moveY = -Math.cos(radians) * stepSize; // negative because y increases downward
+
+      state.sensorPosition.x = Math.max(0, Math.min(100, state.sensorPosition.x + moveX));
+      state.sensorPosition.y = Math.max(0, Math.min(100, state.sensorPosition.y + moveY));
+
+      // Update UI
+      $('#liveStartMarker').setAttribute('cx', state.sensorPosition.x);
+      $('#liveStartMarker').setAttribute('cy', state.sensorPosition.y);
+      $('#liveStartLabel').style.left = `${state.sensorPosition.x}%`;
+      $('#liveStartLabel').style.top = `${state.sensorPosition.y}%`;
+      $('#liveStartLabel').classList.remove('hidden');
+      $('#livePolyline').setAttribute('points', [state.sensorPosition, ...state.path, state.exit].map(pointString).join(' '));
+    }
+  }
+
+  state.lastAcceleration = { x: ax, y: ay, z: az };
+}
+
+function stopSensorTracking() {
+  state.sensorEnabled = false;
+  window.removeEventListener('deviceorientation', handleOrientation);
+  window.removeEventListener('devicemotion', handleMotion);
+}
+
 function updatePlanPositionFromGps(coords) {
   // Time-based filtering: only update every 1 second minimum
   const now = Date.now();
@@ -417,13 +530,11 @@ function findMe() {
     $('#liveStartLabel').style.top = `${state.start.y}%`;
     $('#liveStartLabel').classList.remove('hidden');
     $('#liveMap').classList.add('route-active');
-    showToast('GPS olindi. Rasm bilan tezkor kalibratsiya qilindi.');
-    startLocationWatch();
   }, () => showToast('GPS ruxsatini bering va qayta urinib ko‘ring'), { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 }
 
-function saveRoute() {
-  if (!state.start || !state.exit) return showToast('Avval “Siz” va “Chiqish” nuqtalarini belgilang');
+async function saveRoute() {
+  if (!state.start || !state.exit) return showToast('Avval "Siz" va "Chiqish" nuqtalarini belgilang');
   state.configured = true;
   $('#livePolyline').setAttribute('points', [state.start, ...state.path, state.exit].map(pointString).join(' '));
   $('#liveStartMarker').setAttribute('cx', state.start.x); $('#liveStartMarker').setAttribute('cy', state.start.y);
@@ -433,7 +544,13 @@ function saveRoute() {
   $('#liveStartLabel').classList.remove('hidden'); $('#liveExitLabel').classList.remove('hidden');
   state.gpsAnchor = null;
   state.lastStableGps = null;
-  startLocationWatch();
+
+  // Try sensor tracking first (indoor), fallback to GPS
+  const sensorStarted = await startSensorTracking();
+  if (!sensorStarted) {
+    startLocationWatch();
+  }
+
   switchScreen('live');
   showToast('Xarita moslandi. Sirena kuzatuvi tayyor.');
   startMonitoring();
@@ -613,6 +730,7 @@ $('#editRouteButton').addEventListener('click', () => { switchScreen('calibratio
 $('#backToSetup').addEventListener('click', () => switchScreen('setup'));
 window.addEventListener('beforeunload', stopMonitoring);
 window.addEventListener('beforeunload', stopLocationWatch);
+window.addEventListener('beforeunload', stopSensorTracking);
 const __monitorBtnInit = $('#monitorButton');
 if (__monitorBtnInit) { __monitorBtnInit.disabled = true; __monitorBtnInit.textContent = 'Auto tinglash yoqilgan'; }
 renderAnchors();
