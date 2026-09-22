@@ -162,6 +162,69 @@ function updateUploadState() {
     // mark configured and start monitoring
     try { saveRoute(); } catch (e) { console.error(e); }
   }
+  // Save to localStorage
+  saveState();
+}
+
+function saveState() {
+  const stateToSave = {
+    mapUrl: state.mapUrl,
+    audioUrl: state.audioUrl,
+    audioName: state.audioName,
+    start: state.start,
+    exit: state.exit,
+    path: state.path,
+    anchors: state.anchors,
+    transform: state.transform,
+    configured: state.configured
+  };
+  localStorage.setItem('evakuatsiyaState', JSON.stringify(stateToSave));
+}
+
+function loadState() {
+  const saved = localStorage.getItem('evakuatsiyaState');
+  if (!saved) return false;
+  try {
+    const parsed = JSON.parse(saved);
+    state.mapUrl = parsed.mapUrl || '';
+    state.audioUrl = parsed.audioUrl || '';
+    state.audioName = parsed.audioName || '';
+    state.start = parsed.start || null;
+    state.exit = parsed.exit || null;
+    state.path = parsed.path || [];
+    state.anchors = parsed.anchors || [];
+    state.transform = parsed.transform || null;
+    state.configured = parsed.configured || false;
+
+    // Restore UI
+    if (state.mapUrl) {
+      $('#floorPlan').src = state.mapUrl;
+      $('#livePlan').src = state.mapUrl;
+      $('#editorEmpty').classList.add('hidden');
+    }
+    if (state.start && state.exit) {
+      updateMarkers();
+      $('#livePolyline').setAttribute('points', [state.start, ...state.path, state.exit].map(pointString).join(' '));
+      $('#liveStartMarker').setAttribute('cx', state.start.x);
+      $('#liveStartMarker').setAttribute('cy', state.start.y);
+      $('#liveExitMarker').setAttribute('cx', state.exit.x);
+      $('#liveExitMarker').setAttribute('cy', state.exit.y);
+      $('#liveStartLabel').style.left = `${state.start.x}%`;
+      $('#liveStartLabel').style.top = `${state.start.y}%`;
+      $('#liveExitLabel').style.left = `${state.exit.x}%`;
+      $('#liveExitLabel').style.top = `${state.exit.y}%`;
+      $('#liveStartLabel').classList.remove('hidden');
+      $('#liveExitLabel').classList.remove('hidden');
+    }
+    if (state.anchors.length > 0) {
+      renderAnchors();
+    }
+    updateUploadState();
+    return true;
+  } catch (e) {
+    console.error('Failed to load state:', e);
+    return false;
+  }
 }
 
 function readAsDataUrl(file) {
@@ -246,12 +309,14 @@ function handleFloorClick(event) {
       renderAnchors();
       computeTransformFromAnchors();
       updateGoogleLocation();
+      saveState();
       showToast('GPS kalibrlash tayyor! Endi harakat qiling.');
     }, () => showToast('GPS ruxsati berilmadi'), { enableHighAccuracy: true, timeout: 10000 });
   }
   if (state.mode === 'exit') state.exit = point;
   if (state.mode === 'path' && state.start && state.exit) state.path.push(point);
   updateMarkers();
+  saveState();
 }
 
 function updateGoogleLocation() {
@@ -548,6 +613,7 @@ async function saveRoute() {
   // Use GPS tracking only (more reliable)
   startLocationWatch();
 
+  saveState();
   switchScreen('live');
   showToast('Xarita moslandi. GPS bilan kuzatuv tayyor.');
   startMonitoring();
@@ -732,3 +798,5 @@ const __monitorBtnInit = $('#monitorButton');
 if (__monitorBtnInit) { __monitorBtnInit.disabled = true; __monitorBtnInit.textContent = 'Auto tinglash yoqilgan'; }
 renderAnchors();
 loadDemoAssets();
+// Load saved state from localStorage
+loadState();
